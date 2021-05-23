@@ -1,0 +1,23 @@
+{
+  "key.push_to_talk": "プッシュトゥトーク",
+  "gui.voice_chat_settings.title": "ボイスチャットの設定",
+  "key.voice_chat_settings": "ボイスチャットの設定",
+  "message.voice_chat_volume": "ボイスチャットの音量: %s",
+  "message.microphone_amplification": "音量の増幅: %s",
+  "message.mic_test_on": "マイク無効化のテスト",
+  "message.mic_test_off": "マイク有効化のテスト",
+  "message.mic_test_unavailable": "マイクテストは利用できません",
+  "message.voice_chat_unavailable": "ボイスチャットは利用できません",
+  "message.activation_type": "アクティベーションタイプ: %s",
+  "message.activation_type.ptt": "プッシュトゥトーク",
+  "message.activation_type.voice": "ボイス",
+  "message.voice_activation": "音声のしきい値: %s dB",
+  "message.adjust_volumes": "音量調整",
+  "gui.adjust_volume.title": "音量調整",
+  "message.volume_amplification": "増幅 :%s",
+  "message.adjust_volume_player": "%s の音量調整",
+  "message.no_player": "あなた以外にオンラインのプレイヤーがいません",
+  "message.previous": "前",
+  "message.back": "戻る",
+  "message.next": "次"
+}
