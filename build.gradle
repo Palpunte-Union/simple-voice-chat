@@ -1,34 +1,32 @@
 buildscript {
     repositories {
         maven { url = 'https://files.minecraftforge.net/maven' }
-        maven { url = 'https://maven.maxhenkel.de/repository/public' }
         jcenter()
         mavenCentral()
     }
     dependencies {
-        classpath group: 'net.minecraftforge.gradle', name: 'ForgeGradle', version: '4.1.+', changing: true
-        classpath group: 'de.maxhenkel.forge-update', name: 'forge-update', version: '1.0.2'
+        classpath group: 'net.minecraftforge.gradle', name: 'ForgeGradle', version: '3.+', changing: true
+        classpath group: 'com.github.jengelman.gradle.plugins', name: 'shadow', version: '4.0.4'
     }
 }
 
 plugins {
     // https://github.com/matthewprenger/CurseGradle
     id "com.matthewprenger.cursegradle" version "1.4.0"
-    id "com.github.johnrengelman.shadow" version "5.2.0"
 }
 
 apply plugin: 'net.minecraftforge.gradle'
-apply plugin: 'forge-update'
+apply plugin: 'com.github.johnrengelman.shadow'
 apply plugin: 'idea'
 
 version = mod_version
 group = mod_packagename
 archivesBaseName = mod_id
 
-java.toolchain.languageVersion = JavaLanguageVersion.of(8)
+sourceCompatibility = targetCompatibility = compileJava.sourceCompatibility = compileJava.targetCompatibility = '1.8'
 
 minecraft {
-    mappings channel: 'official', version: mod_minecraft_version
+    mappings channel: 'official', version: "${mod_minecraft_version}"
 
     runs {
         client {
@@ -67,19 +65,12 @@ minecraft {
     }
 }
 
-sourceSets.main.resources { srcDir 'src/generated/resources' }
-
 dependencies {
     minecraft "net.minecraftforge:forge:${mod_minecraft_version}-${forge_version}"
 
     shadow fg.deobf("de.maxhenkel.corelib:corelib:${mod_minecraft_version}-${corelib_version}:api")
     runtimeOnly fg.deobf("de.maxhenkel.corelib:corelib:${mod_minecraft_version}-${corelib_version}")
     runtimeOnly fg.deobf("de.maxhenkel.corelib:corelib:${mod_minecraft_version}-${corelib_version}:javadoc")
-
-    runtimeOnly 'de.maxhenkel.opus4j:opus4j:1.0.0-jna-4.4.0'
-    shadow 'de.maxhenkel.opus4j:opus4j:1.0.0-jna-4.4.0'
-
-    implementation 'com.google.code.findbugs:jsr305:3.0.2'
 }
 
 jar {
@@ -100,48 +91,12 @@ processResources {
     from(sourceSets.main.resources.srcDirs) {
         include '**/*.toml'
 
-        expand 'mod_id': mod_id,
-                'mod_version': mod_version,
-                'mod_vendor': mod_vendor,
-                'mod_name': mod_name,
-                'mod_forge_version': mod_forge_version,
-                'mod_minecraft_version': mod_minecraft_version
+        expand 'mod_id': mod_id, 'mod_version': mod_version, 'mod_vendor': mod_vendor, 'mod_name': mod_name,
+                'mod_forge_version': mod_forge_version, 'mod_minecraft_version': mod_minecraft_version
     }
     from(sourceSets.main.resources.srcDirs) {
         exclude '**/*.toml'
     }
-}
-
-curseforge {
-    apiKey = System.env.CURSEFORGE_API_KEY != null ? System.env.CURSEFORGE_API_KEY : file('curseforge_api_key.txt').text
-    project {
-        id = curse_id
-        changelogType = 'markdown'
-        changelog = file('changelog.md')
-        releaseType = curse_release_type
-        addGameVersion mod_minecraft_version
-        mainArtifact(jar) {
-            displayName = "[FORGE][${mod_minecraft_version}] ${mod_name} ${mod_version}"
-        }
-    }
-}
-
-forgeUpdate {
-    def messages = []
-    file('changelog.md').eachLine { String line ->
-        if (line.trim().startsWith('-')) {
-            messages.add(line.replaceFirst('-', '').trim())
-        }
-    }
-
-    serverURL = 'https://update.maxhenkel.de/'
-    apiKey = System.env.FORGE_UPDATE_API_KEY != null ? System.env.FORGE_UPDATE_API_KEY : file('forge_update_api_key.txt').text
-    modID = mod_id
-    gameVersion = mod_minecraft_version
-    modVersion = mod_version
-    updateMessages = messages
-    releaseType = curse_release_type
-    tags = recommended == 'true' ? ['recommended'] : []
 }
 
 repositories {
@@ -190,13 +145,10 @@ artifacts {
 jar.finalizedBy('reobfJar')
 
 shadowJar {
+    project.configurations.shadow.setTransitive(true);
     configurations = [project.configurations.shadow]
-    classifier ''
+    classifier = ""
     relocate 'de.maxhenkel.corelib', "de.maxhenkel.${mod_id}.corelib"
-    relocate 'de.maxhenkel.opus4j', "de.maxhenkel.${mod_id}.opus4j"
-    dependencies {
-        exclude(dependency('net.java.dev.jna:jna:4.4.0'))
-    }
 }
 
 reobf {

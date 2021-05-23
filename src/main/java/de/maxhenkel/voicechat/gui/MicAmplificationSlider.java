@@ -1,4 +1,4 @@
-package de.maxhenkel.voicechat.gui.widgets;
+package de.maxhenkel.voicechat.gui;
 
 import de.maxhenkel.voicechat.Main;
 import net.minecraft.client.gui.widget.AbstractSlider;
@@ -9,15 +9,15 @@ public class MicAmplificationSlider extends AbstractSlider {
 
     private static final float MAXIMUM = 4F;
 
-    public MicAmplificationSlider(int xIn, int yIn, int widthIn, int heightIn) {
-        super(xIn, yIn, widthIn, heightIn, StringTextComponent.EMPTY, Main.CLIENT_CONFIG.microphoneAmplification.get().floatValue() / MAXIMUM);
+    protected MicAmplificationSlider(int xIn, int yIn, int widthIn, int heightIn) {
+        super(xIn, yIn, widthIn, heightIn, new StringTextComponent(""), Main.CLIENT_CONFIG.microphoneAmplification.get().floatValue() / MAXIMUM);
         updateMessage();
     }
 
     @Override
     protected void updateMessage() {
         long amp = Math.round(value * MAXIMUM * 100F - 100F);
-        setMessage(new TranslationTextComponent("message.voicechat.microphone_amplification", (amp > 0F ? "+" : "") + amp + "%"));
+        setMessage(new TranslationTextComponent("message.microphone_amplification", (amp > 0F ? "+" : "") + amp + "%"));
     }
 
     @Override

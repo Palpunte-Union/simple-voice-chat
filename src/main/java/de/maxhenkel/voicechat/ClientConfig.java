@@ -10,15 +10,6 @@ public class ClientConfig extends ConfigBase {
     public final ForgeConfigSpec.DoubleValue voiceActivationThreshold;
     public final ForgeConfigSpec.DoubleValue microphoneAmplification;
     public final ForgeConfigSpec.EnumValue<MicrophoneActivationType> microphoneActivationType;
-    public final ForgeConfigSpec.IntValue outputBufferSize;
-    public final ForgeConfigSpec.IntValue deactivationDelay;
-    public final ForgeConfigSpec.ConfigValue<String> microphone;
-    public final ForgeConfigSpec.ConfigValue<String> speaker;
-    public final ForgeConfigSpec.BooleanValue muted;
-    public final ForgeConfigSpec.BooleanValue disabled;
-    public final ForgeConfigSpec.BooleanValue stereo;
-    public final ForgeConfigSpec.BooleanValue hideIcons;
-    public final ForgeConfigSpec.BooleanValue showGroupHUD;
 
     public ClientConfig(ForgeConfigSpec.Builder builder) {
         super(builder);
@@ -34,40 +25,5 @@ public class ClientConfig extends ConfigBase {
         microphoneAmplification = builder
                 .comment("The voice chat microphone amplification")
                 .defineInRange("microphone_amplification", 1D, 0D, 4D);
-        outputBufferSize = builder
-                .comment(
-                        "The size of the audio output buffer in packets",
-                        "Higher values mean a higher latency, but less crackles",
-                        "Increase this value if you have an unstable internet connection"
-                )
-                .defineInRange("output_buffer_size", 6, 1, 16);
-        deactivationDelay = builder
-                .comment(
-                        "The time it takes for the microphone to deactivate when using voice activation",
-                        "A value of 1 means 20 milliseconds, 2=40 ms, 3=60 ms, ..."
-                )
-                .defineInRange("voice_deactivation_delay", 25, 0, 100);
-        microphone = builder
-                .comment("The microphone used by the voice chat", "Empty for default device")
-                .define("microphone", "");
-        speaker = builder
-                .comment("The microphone used by the voice chat", "Empty for default device")
-                .define("speaker", "");
-        muted = builder
-                .comment("If the microphone is muted (only when using voice activation)")
-                .define("muted", false);
-        disabled = builder
-                .comment("If the voice chat is disabled (sound and microphone off)")
-                .define("disabled", false);
-        stereo = builder
-                .comment("If the voice chat should use semi 3D stereo sound")
-                .define("stereo", true);
-        hideIcons = builder
-                .comment("If the voice chat icons should be hidden")
-                .define("hide_icons", false);
-        showGroupHUD = builder
-                .comment("If the group HUD should be visible")
-                .define("show_group_hud", true);
     }
-
 }

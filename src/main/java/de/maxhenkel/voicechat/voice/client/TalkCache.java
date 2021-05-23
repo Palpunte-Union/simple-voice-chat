@@ -1,7 +1,5 @@
 package de.maxhenkel.voicechat.voice.client;
 
-import de.maxhenkel.voicechat.Main;
-import net.minecraft.client.Minecraft;
 import net.minecraft.entity.player.PlayerEntity;
 
 import java.util.*;
@@ -20,20 +18,22 @@ public class TalkCache {
         cache.put(player, System.currentTimeMillis());
     }
 
-    public boolean isTalking(PlayerEntity player) {
-        return isTalking(player.getUUID());
-    }
-
-    public boolean isTalking(UUID player) {
-        if (player.equals(Minecraft.getInstance().player.getUUID())) {
-            Client client = Main.CLIENT_VOICE_EVENTS.getClient();
-            if (client != null) {
-                return client.getMicThread().isTalking();
+    public void updateCache() {
+        long time = System.currentTimeMillis();
+        List<UUID> toRemove = new ArrayList<>();
+        for (Map.Entry<UUID, Long> entry : cache.entrySet()) {
+            if (time - entry.getValue() > TIMEOUT) {
+                toRemove.add(entry.getKey());
             }
         }
+        for (UUID uuid : toRemove) {
+            cache.remove(uuid);
+        }
+    }
 
-        Long lastTalk = cache.getOrDefault(player, 0L);
-        return System.currentTimeMillis() - lastTalk < TIMEOUT;
+    public boolean isTalking(PlayerEntity playerEntity) {
+        updateCache();
+        return cache.containsKey(playerEntity.getUUID());
     }
 
 }

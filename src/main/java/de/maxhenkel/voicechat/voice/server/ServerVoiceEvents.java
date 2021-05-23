@@ -9,7 +9,6 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.event.server.FMLServerStartedEvent;
 import net.minecraftforge.fml.network.PacketDistributor;
 
-import javax.annotation.Nullable;
 import java.util.UUID;
 
 public class ServerVoiceEvents {
@@ -31,43 +30,18 @@ public class ServerVoiceEvents {
         }
     }
 
-    public void initializePlayerConnection(ServerPlayerEntity player) {
-        if (server == null) {
-            return;
-        }
-
-        server.getPlayerStateManager().onPlayerLoggedIn(player);
-
-        UUID secret = server.getSecret(player.getUUID());
-        Main.SIMPLE_CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new AuthenticationMessage(player.getUUID(), secret));
-        Main.LOGGER.info("Sent secret to " + player.getDisplayName().getString());
-    }
-
     @SubscribeEvent
     public void playerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
-        if (event.getPlayer() instanceof ServerPlayerEntity) {
-            initializePlayerConnection((ServerPlayerEntity) event.getPlayer());
-        }
-    }
-
-    @SubscribeEvent
-    public void playerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
         if (server == null) {
             return;
         }
-
+        UUID secret = UUID.randomUUID();
+        server.getSecrets().put(event.getPlayer().getUUID(), secret);
         if (event.getPlayer() instanceof ServerPlayerEntity) {
             ServerPlayerEntity player = (ServerPlayerEntity) event.getPlayer();
-
-            server.getPlayerStateManager().onPlayerLoggedOut(player);
-
-            server.disconnectClient(player.getUUID());
-            Main.LOGGER.info("Disconnecting client " + player.getDisplayName().getString());
+            Main.SIMPLE_CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new AuthenticationMessage(player.getUUID(), secret));
+            Main.LOGGER.info("Sent secret to " + player.getUUID());
         }
     }
 
-    @Nullable
-    public Server getServer() {
-        return server;
-    }
 }

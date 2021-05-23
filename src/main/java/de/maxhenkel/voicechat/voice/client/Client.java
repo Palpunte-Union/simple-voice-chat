@@ -1,89 +1,38 @@
 package de.maxhenkel.voicechat.voice.client;
 
 import de.maxhenkel.voicechat.Main;
-import de.maxhenkel.voicechat.event.VoiceChatConnectedEvent;
-import de.maxhenkel.voicechat.voice.common.*;
-import net.minecraftforge.common.MinecraftForge;
-import org.jline.utils.Log;
+import de.maxhenkel.voicechat.voice.common.AuthenticatePacket;
+import de.maxhenkel.voicechat.voice.common.KeepAlivePacket;
+import de.maxhenkel.voicechat.voice.common.NetworkMessage;
+import de.maxhenkel.voicechat.voice.common.Utils;
 
-import java.io.IOException;
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
-import java.net.InetAddress;
-import java.util.*;
+import java.io.*;
+import java.net.Socket;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
 
 public class Client extends Thread {
 
-    private DatagramSocket socket;
-    private InetAddress address;
-    private int port;
-    private UUID playerUUID;
-    private UUID secret;
+    private Socket socket;
+    private DataInputStream fromServer;
+    private DataOutputStream toServer;
+    private List<AudioChannel> audioChannels;
     private MicThread micThread;
     private boolean running;
     private TalkCache talkCache;
-    private boolean authenticated;
-    private Map<UUID, AudioChannel> audioChannels;
-    private AuthThread authThread;
-    private long lastKeepAlive;
 
-    public Client(String serverIp, int serverPort, UUID playerUUID, UUID secret) throws IOException {
-        this.address = InetAddress.getByName(serverIp);
-        this.port = serverPort;
-        this.socket = new DatagramSocket();
-        this.socket.setTrafficClass(0x04); // IPTOS_RELIABILITY
-        this.playerUUID = playerUUID;
-        this.secret = secret;
-        this.lastKeepAlive = -1L;
+    public Client(String serverIp, int serverPort) throws IOException {
+        this.socket = new Socket(serverIp, serverPort);
+        this.fromServer = new DataInputStream(socket.getInputStream());
+        this.toServer = new DataOutputStream(socket.getOutputStream());
+        this.audioChannels = new ArrayList<>();
         this.running = true;
         this.talkCache = new TalkCache();
-        this.audioChannels = new HashMap<>();
-        this.authThread = new AuthThread();
-        this.authThread.start();
         setDaemon(true);
-        setName("VoiceChatClientThread");
-    }
 
-    public UUID getPlayerUUID() {
-        return playerUUID;
-    }
-
-    public UUID getSecret() {
-        return secret;
-    }
-
-    public InetAddress getAddress() {
-        return address;
-    }
-
-    public int getPort() {
-        return port;
-    }
-
-    public DatagramSocket getSocket() {
-        return socket;
-    }
-
-    public boolean isAuthenticated() {
-        return authenticated;
-    }
-
-    public void reloadDataLines() {
-        Log.debug("Reloading data lines");
-        if (micThread != null) {
-            Log.debug("Restarting microphone thread");
-            micThread.close();
-            micThread = null;
-            startMicThread();
-        }
-        Log.debug("Clearing audio channels");
-        audioChannels.forEach((uuid, audioChannel) -> audioChannel.closeAndKill());
-        audioChannels.clear();
-    }
-
-    private void startMicThread() {
         try {
-            micThread = new MicThread(this);
+            micThread = new MicThread(toServer);
             micThread.start();
         } catch (Exception e) {
             Main.LOGGER.error("Mic unavailable " + e);
@@ -94,54 +43,48 @@ public class Client extends Thread {
     public void run() {
         try {
             while (running) {
-                NetworkMessage in = NetworkMessage.readPacketClient(socket, this);
-                if (in.getPacket() instanceof AuthenticateAckPacket) {
-                    if (!authenticated) {
-                        Main.LOGGER.info("Server acknowledged authentication");
-                        authenticated = true;
-                        MinecraftForge.EVENT_BUS.post(new VoiceChatConnectedEvent(this));
-                        startMicThread();
-                        lastKeepAlive = System.currentTimeMillis();
+                if (socket.getInputStream().available() > 0) {
+                    NetworkMessage in = NetworkMessage.readPacket(fromServer);
+                    // Ignoring KeepAlive packets
+                    if (in.getPacket() instanceof KeepAlivePacket) {
+                        continue;
                     }
-                } else if (in.getPacket() instanceof SoundPacket) {
-                    if (!Main.CLIENT_VOICE_EVENTS.getPlayerStateManager().isDisabled()) {
-                        SoundPacket packet = (SoundPacket) in.getPacket();
-                        AudioChannel sendTo = audioChannels.get(packet.getSender());
-                        if (sendTo == null) {
-                            AudioChannel ch = new AudioChannel(this, packet.getSender());
-                            ch.addToQueue(packet);
-                            ch.start();
-                            audioChannels.put(packet.getSender(), ch);
-                        } else {
-                            sendTo.addToQueue(packet);
-                        }
+                    AudioChannel sendTo = audioChannels.stream().filter(audioChannel -> audioChannel.getUUID().equals(in.getPlayerUUID())).findFirst().orElse(null); //TODO to map
+                    if (sendTo == null) {
+                        AudioChannel ch = new AudioChannel(this, in.getPlayerUUID());
+                        ch.addToQueue(in);
+                        ch.start();
+                        audioChannels.add(ch);
+                    } else {
+                        sendTo.addToQueue(in);
                     }
-
-                    audioChannels.values().stream().filter(AudioChannel::canKill).forEach(AudioChannel::closeAndKill);
-                    audioChannels.entrySet().removeIf(entry -> entry.getValue().isClosed());
-                } else if (in.getPacket() instanceof PingPacket) {
-                    PingPacket packet = (PingPacket) in.getPacket();
-                    Main.LOGGER.info("Received ping {}, sending pong...", packet.getId());
-                    sendToServer(new NetworkMessage(packet));
-                } else if (in.getPacket() instanceof KeepAlivePacket) {
-                    lastKeepAlive = System.currentTimeMillis();
-                    sendToServer(new NetworkMessage(new KeepAlivePacket()));
+                } else {
+                    audioChannels.stream().filter(AudioChannel::canKill).forEach(AudioChannel::closeAndKill);
+                    audioChannels.removeIf(AudioChannel::canKill);
+                    Utils.sleep(1);
                 }
             }
         } catch (Exception e) {
-            if (running) {
-                Main.LOGGER.error("Failed to process packet from server: {}", e.getMessage());
-                e.printStackTrace();
-            }
+            e.printStackTrace();
+        }
+    }
+
+    public void authenticate(UUID playerUUID, UUID secret) {
+        try {
+            (new NetworkMessage(new AuthenticatePacket(playerUUID, secret))).send(toServer);
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 
     public void close() {
         Main.LOGGER.info("Disconnecting client");
         running = false;
-        socket.close();
-        authThread.close();
-
+        try {
+            socket.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
         if (micThread != null) {
             micThread.close();
         }
@@ -158,47 +101,5 @@ public class Client extends Thread {
     public TalkCache getTalkCache() {
         return talkCache;
     }
-
-    public void sendToServer(NetworkMessage message) throws Exception {
-        byte[] data = message.writeClient(this);
-        socket.send(new DatagramPacket(data, data.length, address, port));
-    }
-
-    public void checkTimeout() {
-        if (lastKeepAlive >= 0 && System.currentTimeMillis() - lastKeepAlive > Main.SERVER_CONFIG.keepAlive.get() * 10L) {
-            Main.LOGGER.info("Connection timeout");
-            Main.CLIENT_VOICE_EVENTS.onDisconnect();
-        }
-    }
-
-
-    private class AuthThread extends Thread {
-        private boolean running;
-
-        public AuthThread() {
-            this.running = true;
-            setDaemon(true);
-            setName("VoiceChatAuthenticationThread");
-        }
-
-        @Override
-        public void run() {
-            while (running && !authenticated) {
-                try {
-                    Main.LOGGER.info("Trying to authenticate voice connection");
-                    sendToServer(new NetworkMessage(new AuthenticatePacket(playerUUID, secret)));
-                } catch (Exception e) {
-                    if (!socket.isClosed()) {
-                        Main.LOGGER.error("Failed to authenticate voice connection: {}", e.getMessage());
-                    }
-                }
-                Utils.sleep(1000);
-            }
-        }
-
-        public void close() {
-            running = false;
-        }
-    }
-
 }
+ 

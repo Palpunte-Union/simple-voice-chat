@@ -29,14 +29,15 @@ public class AuthenticationMessage implements Message<AuthenticationMessage> {
 
     @Override
     public void executeClientSide(NetworkEvent.Context context) {
-        Main.CLIENT_VOICE_EVENTS.authenticate(playerUUID, secret);
+        Main.CLIENT_VOICE_EVENTS.getClient().authenticate(playerUUID, secret);
     }
 
     @Override
     public AuthenticationMessage fromBytes(PacketBuffer buf) {
-        playerUUID = buf.readUUID();
-        secret = buf.readUUID();
-        return this;
+        AuthenticationMessage message = new AuthenticationMessage();
+        message.playerUUID = buf.readUUID();
+        message.secret = buf.readUUID();
+        return message;
     }
 
     @Override

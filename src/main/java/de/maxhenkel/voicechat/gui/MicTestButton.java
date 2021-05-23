@@ -1,14 +1,12 @@
-package de.maxhenkel.voicechat.gui.widgets;
+package de.maxhenkel.voicechat.gui;
 
 import com.mojang.blaze3d.matrix.MatrixStack;
 import de.maxhenkel.voicechat.Main;
 import de.maxhenkel.voicechat.voice.client.AudioChannelConfig;
 import de.maxhenkel.voicechat.voice.client.Client;
-import de.maxhenkel.voicechat.voice.client.DataLines;
 import de.maxhenkel.voicechat.voice.client.MicThread;
 import de.maxhenkel.voicechat.voice.common.Utils;
 import net.minecraft.client.gui.widget.button.AbstractButton;
-import net.minecraft.util.text.StringTextComponent;
 import net.minecraft.util.text.TranslationTextComponent;
 
 import javax.sound.sampled.*;
@@ -20,7 +18,7 @@ public class MicTestButton extends AbstractButton {
     private MicListener micListener;
 
     public MicTestButton(int xIn, int yIn, int widthIn, int heightIn, MicListener micListener) {
-        super(xIn, yIn, widthIn, heightIn, StringTextComponent.EMPTY);
+        super(xIn, yIn, widthIn, heightIn, null);
         this.micListener = micListener;
         if (getMic() == null) {
             micActive = false;
@@ -30,13 +28,13 @@ public class MicTestButton extends AbstractButton {
 
     private void updateText() {
         if (!visible) {
-            setMessage(new TranslationTextComponent("message.voicechat.mic_test_unavailable"));
+            setMessage(new TranslationTextComponent("message.mic_test_unavailable"));
             return;
         }
         if (micActive) {
-            setMessage(new TranslationTextComponent("message.voicechat.mic_test_on"));
+            setMessage(new TranslationTextComponent("message.mic_test_on"));
         } else {
-            setMessage(new TranslationTextComponent("message.voicechat.mic_test_off"));
+            setMessage(new TranslationTextComponent("message.mic_test_off"));
         }
     }
 
@@ -116,10 +114,8 @@ public class MicTestButton extends AbstractButton {
             if (mic == null) {
                 throw new LineUnavailableException("No microphone");
             }
-            speaker = DataLines.getSpeaker();
-            if (speaker == null) {
-                throw new LineUnavailableException("No speaker");
-            }
+            DataLine.Info sourceInfo = new DataLine.Info(SourceDataLine.class, audioFormat);
+            speaker = (SourceDataLine) AudioSystem.getLine(sourceInfo);
             speaker.open(audioFormat);
             speaker.start();
 
@@ -137,13 +133,15 @@ public class MicTestButton extends AbstractButton {
                     return;
                 }
                 mic.start();
-                int dataLength = AudioChannelConfig.getFrameSize();
+                int dataLength = AudioChannelConfig.getDataLength();
                 if (mic.available() < dataLength) {
-                    Utils.sleep(1);
+                    Utils.sleep(10);
                     continue;
                 }
                 byte[] buff = new byte[dataLength];
-                mic.read(buff, 0, buff.length);
+                while (mic.available() >= dataLength) {
+                    mic.read(buff, 0, buff.length);
+                }
                 Utils.adjustVolumeMono(buff, Main.CLIENT_CONFIG.microphoneAmplification.get().floatValue());
 
                 micListener.onMicValue(Utils.dbToPerc(Utils.getHighestAudioLevel(buff)));

@@ -1,18 +1,18 @@
 package de.maxhenkel.voicechat.voice.common;
 
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.settings.PointOfView;
-import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.vector.Vector2f;
 import net.minecraft.util.math.vector.Vector3d;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
-public class Utils {
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
 
+public class Utils {
     public static void sleep(int ms) {
         try {
             Thread.sleep(ms);
@@ -24,12 +24,53 @@ public class Utils {
         return (float) (10D * Math.log(percentage));
     }
 
-    public static short bytesToShort(byte b1, byte b2) {
-        return (short) (((b2 & 0xFF) << 8) | (b1 & 0xFF));
+    /**
+     * Decompresses the given data with the gzip algorithm
+     *
+     * @param data the data to decompress
+     * @return the decompressed data
+     * @throws IOException if an IO error occurs
+     */
+    public static byte[] gUnzip(byte[] data) throws IOException {
+        ByteArrayInputStream bis = new ByteArrayInputStream(data);
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        GZIPInputStream gzipIS = new GZIPInputStream(bis);
+
+        byte[] buffer = new byte[128];
+        int len;
+        while ((len = gzipIS.read(buffer)) != -1) {
+            bos.write(buffer, 0, len);
+        }
+        bos.flush();
+        byte[] decompressed = bos.toByteArray();
+
+        gzipIS.close();
+        bos.close();
+        bis.close();
+        return decompressed;
     }
 
-    public static byte[] shortToBytes(short s) {
-        return new byte[]{(byte) (s & 0xFF), (byte) ((s >> 8) & 0xFF)};
+    /**
+     * Compresses the given bytes with the gzip algorithm
+     *
+     * @param data the data to compress
+     * @return the compressed data
+     * @throws IOException if an IO error occurs
+     */
+    public static byte[] gzip(byte[] data) throws IOException {
+        ByteArrayOutputStream bos = new ByteArrayOutputStream(data.length);
+        GZIPOutputStream gzipOut = new GZIPOutputStream(bos);
+        gzipOut.write(data);
+        gzipOut.flush();
+        gzipOut.close();
+        bos.flush();
+        byte[] compressed = bos.toByteArray();
+        bos.close();
+        return compressed;
+    }
+
+    public static short bytesToShort(byte b1, byte b2) {
+        return (short) (((b2 & 0xff) << 8) | (b1 & 0xff));
     }
 
     /**
@@ -42,7 +83,7 @@ public class Utils {
      */
     public static byte[] adjustVolumeMono(byte[] audio, float volume) {
         for (int i = 0; i < audio.length; i += 2) {
-            short audioSample = bytesToShort(audio[i], audio[i + 1]);
+            short audioSample = bytesToShort(audio[i], audio[i + 1]); //(short) (((audio[i + 1] & 0xff) << 8) | (audio[i] & 0xff));
 
             audioSample = (short) (audioSample * volume);
 
@@ -64,7 +105,7 @@ public class Utils {
      */
     public static byte[] adjustVolumeStereo(byte[] audio, float volumeLeft, float volumeRight) {
         for (int i = 0; i < audio.length; i += 2) {
-            short audioSample = bytesToShort(audio[i], audio[i + 1]);
+            short audioSample = bytesToShort(audio[i], audio[i + 1]); //(short) (((audio[i + 1] & 0xff) << 8) | (audio[i] & 0xff));
 
             audioSample = (short) (audioSample * (i % 4 == 0 ? volumeLeft : volumeRight));
 
@@ -116,15 +157,12 @@ public class Utils {
         return stereo;
     }
 
-    @OnlyIn(Dist.CLIENT)
-    public static Pair<Float, Float> getStereoVolume(Minecraft minecraft, Vector3d soundPos, double voiceChatDistance) {
-        PlayerEntity player = minecraft.player;
-        Vector3d playerPos = player.position();
+    public static Pair<Float, Float> getStereoVolume(Vector3d playerPos, float yaw, Vector3d soundPos) {
         Vector3d d = soundPos.subtract(playerPos).normalize();
         Vector2f diff = new Vector2f((float) d.x, (float) d.z);
         float diffAngle = angle(diff, new Vector2f(-1F, 0F));
-        float angle = normalizeAngle(diffAngle - (player.yRot % 360F));
-        float dif = (float) (Math.abs(playerPos.y - soundPos.y) / voiceChatDistance);
+
+        float angle = normalizeAngle(diffAngle - (yaw % 360F));
 
         float rot = angle / 180F;
         float perc = rot;
@@ -133,19 +171,18 @@ public class Utils {
         } else if (rot > 0.5F) {
             perc = 0.5F - (rot - 0.5F);
         }
-        perc = perc * (1 - dif);
 
-        float left = perc < 0F ? Math.abs(perc * 1.4F) + 0.3F : 0.3F;
-        float right = perc >= 0F ? (perc * 1.4F) + 0.3F : 0.3F;
+        float left = Math.max(0.3F, perc < 0F ? Math.abs(perc * 2F) : 0F);
+        float right = Math.max(0.3F, perc >= 0F ? perc * 2F : 0F);
 
-        float fill = 1F - Math.max(left, right);
+        float fill;
+        if (left > right) {
+            fill = 1F - left;
+        } else {
+            fill = 1F - right;
+        }
         left += fill;
         right += fill;
-
-        if (minecraft.options.getCameraType().equals(PointOfView.THIRD_PERSON_FRONT)) {
-            return new ImmutablePair<>(right, left);
-        }
-
         return new ImmutablePair<>(left, right);
     }
 

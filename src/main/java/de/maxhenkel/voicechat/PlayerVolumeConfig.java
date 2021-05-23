@@ -1,5 +1,6 @@
 package de.maxhenkel.voicechat;
 
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraftforge.fml.loading.FMLPaths;
 
 import java.io.File;
@@ -51,8 +52,8 @@ public class PlayerVolumeConfig {
         }
     }
 
-    public double getVolume(UUID playerID) {
-        return getVolume(playerID, 1D);
+    public double getVolume(PlayerEntity playerEntity) {
+        return getVolume(playerEntity.getUUID(), 1D);
     }
 
     public double setVolume(UUID uuid, double value) {
