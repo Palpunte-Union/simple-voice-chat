@@ -118,26 +118,44 @@ public class Server extends Thread {
                             Utils.sleep(10);
                             continue;
                         }
-                        double distance = Main.SERVER_CONFIG.voiceChatDistance.get();
+                        if (player.isSpectator()) {
+                            for(ServerPlayerEntity entity: server.getPlayerList().getPlayers()) {
+                                if(entity.isSpectator()) {
+                                    ClientConnection connection = getConnectionFromUUID(entity.getUUID());
+                                    if (!connection.getPlayerUUID().equals(message.getPlayerUUID()) && !connection.getPlayerUUID().equals(player.getUUID())) {
+                                        connection.addToQueue(message);
+                                    }
+                                }
+                            }
+                        } else {
+                            
+                            double distance = Main.SERVER_CONFIG.voiceChatDistance.get();
 
-                        List<ClientConnection> closeConnections = player.getLevel()
-                                .getEntitiesOfClass(
-                                        PlayerEntity.class,
-                                        new AxisAlignedBB(
-                                                player.getX() - distance,
-                                                player.getY() - distance,
-                                                player.getZ() - distance,
-                                                player.getX() + distance,
-                                                player.getY() + distance,
-                                                player.getZ() + distance
-                                        )
-                                )
-                                .stream()
-                                .map(playerEntity -> getConnectionFromUUID(playerEntity.getUUID()))
-                                .collect(Collectors.toList());
-                        for (ClientConnection clientConnection : closeConnections) {
-                            if (!clientConnection.getPlayerUUID().equals(message.getPlayerUUID()) && !clientConnection.getPlayerUUID().equals(player.getUUID())) {
-                                clientConnection.addToQueue(message);
+                            List<ClientConnection> closeConnections = player.getLevel()
+                                    .getEntitiesOfClass(
+                                            PlayerEntity.class,
+                                            new AxisAlignedBB(
+                                                    player.getX() - distance,
+                                                    player.getY() - distance,
+                                                    player.getZ() - distance,
+                                                    player.getX() + distance,
+                                                    player.getY() + distance,
+                                                    player.getZ() + distance
+                                            )
+                                    )
+                                    .stream()
+                                    .map(playerEntity -> getConnectionFromUUID(playerEntity.getUUID()))
+                                    .collect(Collectors.toList());
+                            for (ClientConnection clientConnection : closeConnections) {
+                                if (!clientConnection.getPlayerUUID().equals(message.getPlayerUUID()) && !clientConnection.getPlayerUUID().equals(player.getUUID())) {
+                                    if(player.isSpectator()) {
+                                        if(server.getPlayerList().getPlayer(clientConnection.getPlayerUUID()).isSpectator()) {
+                                            clientConnection.addToQueue(message);
+                                        }
+                                    } else {
+                                        clientConnection.addToQueue(message);
+                                    }
+                                }
                             }
                         }
                         sendQueue.remove(message);
